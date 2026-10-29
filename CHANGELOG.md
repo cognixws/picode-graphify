@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 — 2026-10-29
+
+- The Graph page opens on the folders of the workspace, sized by how much code they hold, with calls and imports drawn between them.
+- Choosing a folder says where most of its calls go. Choosing a symbol still shows that symbol's own links.
+
 ## 0.1.2 — 2026-10-29
 
 - The Graph page draws the most connected symbols and a few of what each one touches.

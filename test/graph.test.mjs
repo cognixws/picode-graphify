@@ -201,3 +201,23 @@ test("the map keeps a call ahead of a file that only contains the symbol", async
   assert.equal(map.hubs[0].links[0].label, "add()");
   assert.equal(map.hubs[0].links[0].relation, "calls");
 });
+
+test("the map is the largest folders and the imports between them", async () => {
+  const file = join(root, "folders.json");
+  const nodes = [];
+  const edges = [];
+  for (let i = 0; i < 6; i++) nodes.push({ id: "b" + i, label: "view" + i, source_file: "web/browser/view" + i + ".js" });
+  for (let i = 0; i < 4; i++) nodes.push({ id: "s" + i, label: "shared" + i, source_file: "web/shared/lib" + i + ".js" });
+  for (let i = 0; i < 2; i++) nodes.push({ id: "g" + i, label: "main" + i, source_file: "cmd/picode/main.go" });
+  for (let i = 0; i < 6; i++) edges.push({ source: "b" + i, target: "s0", relation: "imports_from" });
+  edges.push({ source: "g0", target: "s0", relation: "imports" });
+  writeFileSync(file, JSON.stringify({ nodes, edges }));
+  const map = await extractMap(file, [], { minWeight: 1 });
+  assert.equal(map.nodes, 12);
+  assert.equal(map.edges, 7);
+  assert.deepEqual(map.areas.map((area) => area.id), ["web/browser", "web/shared", "cmd/picode"]);
+  assert.equal(map.areas[0].symbols, 6);
+  const link = map.links.find((item) => item.from === "web/browser" && item.to === "web/shared");
+  assert.equal(link.weight, 6);
+  assert.equal(map.links.some((item) => item.from === "cmd/picode"), true);
+});

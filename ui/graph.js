@@ -18,6 +18,22 @@ const PREVIEW = {
       hubs: [{ label: "Store.Append", degree: 86 }, { label: "openTab", degree: 54 }, { label: "frameProcess", degree: 31 }],
     },
     map: {
+      version: 2,
+      nodes: 49846,
+      edges: 529068,
+      areas: [
+        { id: "internal/server", label: "internal/server", symbols: 9037 },
+        { id: "web/shared", label: "web/shared", symbols: 6227 },
+        { id: "web/browser", label: "web/browser", symbols: 5654 },
+        { id: "internal/store", label: "internal/store", symbols: 3339 },
+        { id: "web/mobile", label: "web/mobile", symbols: 2893 },
+        { id: "desktop-shell/src", label: "desktop-shell/src", symbols: 2439 },
+      ],
+      links: [
+        { from: "web/browser", to: "web/shared", weight: 1782 },
+        { from: "web/mobile", to: "web/shared", weight: 1203 },
+        { from: "internal/server", to: "internal/store", weight: 1074 },
+      ],
       hubs: [
         { id: "store", label: "Store.Append", degree: 86, links: [
           { id: "event", label: "writeEvent", relation: "calls" },
@@ -37,6 +53,19 @@ const PREVIEW = {
       hubs: Array.from({ length: 12 }, (_, i) => ({ label: "symbol_" + "n".repeat(40) + "_" + i, degree: 1000 - i })),
     },
     map: {
+      version: 2,
+      nodes: 250000,
+      edges: 1400000,
+      areas: Array.from({ length: 12 }, (_, i) => ({
+        id: "internal/part_" + "p".repeat(18) + "_" + i,
+        label: "internal/part_" + "p".repeat(18) + "_" + i,
+        symbols: 9000 - i * 500,
+      })),
+      links: Array.from({ length: 8 }, (_, i) => ({
+        from: "internal/part_" + "p".repeat(18) + "_" + i,
+        to: "internal/part_" + "p".repeat(18) + "_" + ((i + 1) % 12),
+        weight: 400 - i * 30,
+      })),
       hubs: Array.from({ length: 12 }, (_, i) => ({
         id: "h" + i,
         label: "symbol_" + "n".repeat(40) + "_" + i,
@@ -71,6 +100,7 @@ function shortLabel(text, chars) {
 }
 
 let focusLabel = "";
+let focusArea = "";
 let measureCtx = null;
 
 // Canvas width plus a few pixels, so an SVG glyph that renders wider still fits.
@@ -81,20 +111,127 @@ function textWidth(text) {
   return Math.ceil(measureCtx.measureText(String(text || "")).width) + 6;
 }
 
-// One hub in the middle, the symbols it touches around it.
+function areaSentence(map) {
+  const area = (map?.areas || []).find((item) => item.id === focusArea);
+  if (!area) return "Each circle is a folder, sized by how much code it holds. A line means one folder calls or imports another.";
+  const next = (map.links || []).filter((link) => link.from === area.id).sort((a, b) => b.weight - a.weight)[0];
+  const held = area.label + " holds " + Number(area.symbols).toLocaleString("en-US") + " symbols.";
+  return next ? held + " Most of its calls and imports go to " + next.to + "." : held;
+}
+
+function layoutAreas(areas, links, width) {
+  const cols = width < 520 ? 2 : areas.length > 8 ? 4 : 3;
+  const rows = Math.ceil(areas.length / cols);
+  const cellW = width / cols;
+  const cellH = width < 520 ? 108 : 120;
+  const height = rows * cellH + 8;
+  const maxSym = Math.max(1, ...areas.map((area) => area.symbols || 1));
+  const maxR = Math.min(28, cellW * 0.22, cellH * 0.24);
+  const nodes = areas.map((area, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    return {
+      ...area,
+      r: 12 + (maxR - 12) * Math.sqrt((area.symbols || 1) / maxSym),
+      x: (col + 0.5) * cellW,
+      y: row * cellH + cellH * 0.38,
+      cellW,
+    };
+  });
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const edges = (links || []).map((link) => ({ a: byId.get(link.from), b: byId.get(link.to), weight: link.weight || 1 })).filter((edge) => edge.a && edge.b);
+  return { nodes, edges, height };
+}
+
+function drawAreas(stage, map) {
+  const areas = map.areas || [];
+  const width = Math.max(280, root.clientWidth || 640);
+  const laid = layoutAreas(areas, map.links || [], width);
+  const height = laid.height;
+  const picture = svg("svg", { viewBox: "0 0 " + width + " " + height, role: "group", "aria-label": "Folders in this workspace" });
+  const maxW = Math.max(1, ...laid.edges.map((edge) => edge.weight));
+  if (!(map.areas || []).some((area) => area.id === focusArea)) focusArea = "";
+  for (const edge of laid.edges) {
+    const dx = edge.b.x - edge.a.x;
+    const dy = edge.b.y - edge.a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const x1 = edge.a.x + (dx / len) * edge.a.r;
+    const y1 = edge.a.y + (dy / len) * edge.a.r;
+    const x2 = edge.b.x - (dx / len) * (edge.b.r + 2);
+    const y2 = edge.b.y - (dy / len) * (edge.b.r + 2);
+    const stroke = (1.25 + 2.2 * Math.log10(edge.weight + 1) / Math.log10(maxW + 1)).toFixed(2);
+    picture.append(svg("line", { class: "edge", x1, y1, x2, y2, "stroke-width": stroke }));
+    const ux = dx / len;
+    const uy = dy / len;
+    const size = 7;
+    picture.append(svg("polygon", {
+      class: "edge-head",
+      points: [
+        [x2, y2],
+        [x2 - ux * size + -uy * 3.4, y2 - uy * size + ux * 3.4],
+        [x2 - ux * size - -uy * 3.4, y2 - uy * size - ux * 3.4],
+      ].map((point) => point.map((n) => n.toFixed(1)).join(",")).join(" "),
+    }));
+  }
+  for (const node of laid.nodes) {
+    const current = node.id === focusArea;
+    const bubble = svg("circle", {
+      class: "bubble",
+      cx: node.x,
+      cy: node.y,
+      r: node.r,
+      tabindex: "0",
+      role: "button",
+      "aria-label": node.label + ", " + Number(node.symbols).toLocaleString("en-US") + " symbols",
+      "data-area": node.id,
+    });
+    if (current) bubble.setAttribute("data-current", "true");
+    const title = svg("title");
+    title.textContent = node.label + " · " + Number(node.symbols).toLocaleString("en-US") + " symbols";
+    bubble.append(title);
+    let chars = Math.max(6, Math.floor((node.cellW - 16) / 7));
+    let shown = shortLabel(node.label, chars);
+    while (textWidth(shown) > node.cellW - 12 && chars > 5) {
+      chars -= 1;
+      shown = shortLabel(node.label, chars);
+    }
+    const tw = textWidth(shown);
+    const ly = node.y + node.r + 16;
+    const halo = svg("rect", {
+      x: node.x - tw / 2 - 2,
+      y: ly - 12,
+      width: tw + 4,
+      height: 16,
+      fill: "var(--pc-panel)",
+    });
+    const label = svg("text", { class: "bubble-label", x: node.x, y: ly, "text-anchor": "middle" });
+    label.textContent = shown;
+    picture.append(halo, bubble, label);
+  }
+  stage.append(picture);
+  return stage;
+}
+
+// The folders of the workspace. A chosen symbol replaces that with its own links.
 function drawMap(map) {
   const stage = el("div", { class: "stage" });
   const hubs = map?.hubs || [];
+  const areas = map?.areas || [];
   if (map?.pending) {
     stage.append(el("p", { class: "map-note", text: "Drawing the map of this workspace." }));
     return stage;
   }
-  if (map?.error || hubs.length === 0) {
+  if (map?.error || (areas.length === 0 && hubs.length === 0)) {
     stage.append(el("p", { class: "map-note", text: "The picture of this graph could not be drawn." }));
     return stage;
   }
-  if (!hubs.some((hub) => hub.label === focusLabel)) focusLabel = hubs[0].label;
+  if (focusLabel && !hubs.some((hub) => hub.label === focusLabel)) focusLabel = "";
+  if (!focusLabel && areas.length) return drawAreas(stage, map);
   const hub = hubs.find((item) => item.label === focusLabel) || hubs[0];
+  if (!hub) {
+    stage.append(el("p", { class: "map-note", text: "The picture of this graph could not be drawn." }));
+    return stage;
+  }
   const links = (hub.links || []).slice(0, 8);
   // User units match CSS pixels, so a 12px label stays 12px on a narrow pane.
   const width = Math.max(280, root.clientWidth || 640);
@@ -222,7 +359,11 @@ function draw(model, workspaces, selected, map) {
   const parts = String(model.counts || "").split(" · ");
   for (const part of parts) counts.append(el("span", { text: part }));
   root.append(counts, drawMap(map));
-  root.append(el("p", { class: "map-note", text: "The most connected symbols, and a few of what each one touches." }));
+  const looking = focusLabel && (map?.hubs || []).some((hub) => hub.label === focusLabel);
+  root.append(el("p", { class: "map-note", text: looking
+    ? "The most connected symbols, and a few of what each one touches."
+    : areaSentence(map) }));
+  if (looking) root.append(el("button", { class: "pc-button", type: "button", id: "folders", text: "Show folders" }));
   // The sentence sits under the picture, so a click is visible without scrolling past the list.
   root.append(el("pre", { class: "result", id: "result" }));
   if (model.hubs.length) {
@@ -278,7 +419,7 @@ async function load(api) {
   if (gen !== loadGen) return;
   const ws = workspaces.find((w) => w.id === selected);
   const binary = list.binary !== false && state.binary !== false;
-  const shown = presentation({ binary, workspaces, state, name: ws?.name });
+  let shown = presentation({ binary, workspaces, state, name: ws?.name });
   let picture = null;
   if (shown.mode === "ready") {
     picture = { pending: true };
@@ -294,6 +435,12 @@ async function load(api) {
       picture = { error: true };
     }
     if (gen !== loadGen) return;
+    if (picture?.nodes != null) {
+      shown = presentation({
+        binary, workspaces, name: ws?.name,
+        state: { ...state, nodes: picture.nodes, edges: picture.edges },
+      });
+    }
   }
   last = { model: shown, workspaces, selected, map: picture, api };
   const typed = document.getElementById("question")?.value || "";
@@ -339,6 +486,29 @@ function wire(api, model) {
       out.textContent = answer.text || "";
     }).catch((e) => { out.textContent = e.message || "The symbol could not be explained."; });
   };
+  document.getElementById("folders")?.addEventListener("click", () => {
+    focusLabel = "";
+    if (!last) return;
+    const keep = document.getElementById("question")?.value || "";
+    draw(last.model, last.workspaces, last.selected, last.map);
+    const input = document.getElementById("question");
+    if (input && keep) input.value = keep;
+    wire(api, last.model);
+  });
+  root.querySelectorAll("[data-area]").forEach((node) => {
+    const run = () => {
+      focusArea = node.getAttribute("data-area") || "";
+      focusLabel = "";
+      if (!last) return;
+      const keep = document.getElementById("question")?.value || "";
+      draw(last.model, last.workspaces, last.selected, last.map);
+      const kept = document.getElementById("question");
+      if (kept && keep) kept.value = keep;
+      wire(api, last.model);
+    };
+    node.addEventListener("click", run);
+    node.addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+  });
   root.querySelectorAll("[data-symbol]").forEach((node) => {
     const run = () => showSymbol(node.getAttribute("data-symbol"), node.getAttribute("data-hub") === "true");
     node.addEventListener("click", run);
