@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 — 2026-10-29
+
+- The icon is Graphify's official favicon.
+
 ## 0.1.0 — 2026-10-29
 
 - Local code graph for a workspace, built with Graphify (`graphifyy`).

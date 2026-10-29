@@ -40,3 +40,5 @@ Requires Node, which the executor already runs on.
 ## License
 
 Apache-2.0. Graphify is Apache-2.0 and is not included in this package.
+
+The icon is Graphify's favicon. Graphify and its logo are marks of Graphify Labs. This extension is built by COGNIX[WS] and is not affiliated with or endorsed by Graphify Labs.
