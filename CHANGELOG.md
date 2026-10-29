@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 — 2026-10-29
+
+- The Graph page draws the most connected symbols and a few of what each one touches.
+- A graph too large to count no longer shows 0 symbols.
+
 ## 0.1.1 — 2026-10-29
 
 - The icon is Graphify's official favicon.

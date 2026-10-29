@@ -13,11 +13,25 @@
   .empty p { color: var(--pc-text-muted); margin: 0 0 12px; }
   .empty p:last-child { margin-bottom: 0; }
   .counts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 12px; }
+  .stage { background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); margin: 0 0 8px; }
+  .stage svg { display: block; width: 100%; height: auto; }
+  .stage text { font-family: var(--pc-font); font-size: 12px; fill: var(--pc-text); }
+  .edge { stroke: var(--pc-border-strong); stroke-width: 1.25; }
+  .dot-hub { fill: var(--pc-accent-fill); }
+  .dot-near { fill: var(--pc-elevated); stroke: var(--pc-accent); stroke-width: 1.5; }
+  .hit { fill: transparent; cursor: pointer; }
+  .hit:focus { outline: none; }
+  .hit:focus-visible { stroke: var(--pc-accent); stroke-width: 2; }
+  .map-note { color: var(--pc-text-muted); font-size: var(--pc-fs-label); margin: 8px 0 8px; }
+  .stage .map-note { margin: 0; padding: 48px 16px; text-align: center; }
   .hubs-title { font-size: var(--pc-fs-label); font-weight: 600; color: var(--pc-text-muted); margin: 0 0 4px; }
   .hubs { list-style: none; margin: 0 0 16px; padding: 0; }
-  .hubs li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--pc-border); }
-  .hubs li span:first-child { min-width: 0; overflow-wrap: anywhere; }
-  .result { white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0 0; max-height: 320px; overflow: auto; font: 12px/1.45 var(--pc-font-code); }
+  .hub-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 4px 8px; border: 0; border-bottom: 1px solid var(--pc-border); background: transparent; color: var(--pc-text); font: inherit; text-align: left; cursor: pointer; }
+  .hub-row[aria-current="true"] { background: var(--pc-hover); }
+  .hub-row:focus-visible { outline: 2px solid var(--pc-accent); outline-offset: -2px; }
+  .hub-row span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .result { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 12px; max-height: 240px; overflow: auto; font: 12px/1.45 var(--pc-font-code); color: var(--pc-text); }
+  .result:empty { display: none; }
 </style>
 </head>
 <body class="pc-page">

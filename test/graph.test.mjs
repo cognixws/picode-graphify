@@ -9,6 +9,7 @@ import {
   readState, writeState, summarize, handleTool, runBuild, sameSecret, INSTALL,
 } from "../lib/graph.mjs";
 import { presentation } from "../lib/view.mjs";
+import { extractMap } from "../lib/map.mjs";
 
 const root = mkdtempSync(join(tmpdir(), "graphify-ext-"));
 const nested = join(root, "src");
@@ -174,4 +175,29 @@ test("the page states say what is true and name one action", () => {
   });
   assert.equal(ready.mode, "ready");
   assert.match(ready.counts, /1,200 symbols/);
+  const unknown = presentation({
+    binary: true, workspaces: [{ id: "a" }],
+    state: { state: "ready", nodes: null, edges: null, finishedAt: "2026-10-29T22:30:00Z", hubs: [{ label: "api()", degree: 3 }] },
+  });
+  assert.equal(unknown.counts, "Graph ready · built 2026-10-29 22:30");
+});
+
+test("the map keeps a call ahead of a file that only contains the symbol", async () => {
+  const file = join(root, "graph.json");
+  writeFileSync(file, JSON.stringify({
+    nodes: [
+      { id: "file", label: "app.js" },
+      { id: "main", label: "main()" },
+      { id: "add", label: "add()" },
+    ],
+    edges: [
+      { source: "file", target: "main", relation: "contains" },
+      { source: "main", target: "add", relation: "calls" },
+    ],
+  }));
+  const map = await extractMap(file, [{ label: "main()", degree: 2 }], { maxLinks: 1 });
+  assert.equal(map.hubs.length, 1);
+  assert.equal(map.hubs[0].links.length, 1);
+  assert.equal(map.hubs[0].links[0].label, "add()");
+  assert.equal(map.hubs[0].links[0].relation, "calls");
 });

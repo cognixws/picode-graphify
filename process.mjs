@@ -4,6 +4,7 @@
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
 import { ask, drain, enqueue, graphKey, readState, recover, sameSecret, whichGraphify } from "./lib/graph.mjs";
+import { loadMap } from "./lib/map.mjs";
 import { enabledWorkspaces } from "./lib/host.mjs";
 import { INSTALL } from "./lib/view.mjs";
 
@@ -63,6 +64,22 @@ async function handle(req, res) {
         install: INSTALL,
         workspaces: rows.map((w) => ({ id: w.id, name: w.name || w.id })),
       });
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/map") {
+      const ws = await workspace(url.searchParams.get("workspace") || "");
+      if (!ws) {
+        send(res, 404, { error: "That workspace does not have Graphify turned on." });
+        return;
+      }
+      const key = graphKey(ws.id, ws.path);
+      const state = readState(dataDir, key);
+      const map = await loadMap(dataDir, key, state?.hubs || []);
+      if (!map) {
+        send(res, 404, { error: "No graph yet." });
+        return;
+      }
+      send(res, 200, map);
       return;
     }
     if (req.method === "GET" && url.pathname === "/status") {
