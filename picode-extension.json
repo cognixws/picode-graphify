@@ -1,0 +1,157 @@
+{
+  "id": "graphify",
+  "name": "Graphify",
+  "version": "0.1.0",
+  "apiVersion": 2,
+  "publisher": "COGNIX[WS]",
+  "description": "A local graph of a workspace's code, built with Graphify. Code stays on this machine.",
+  "icon": "icons/graphify.svg",
+  "permissions": ["workspaces:read"],
+  "process": {
+    "command": "node",
+    "args": ["${extensionDir}/process.mjs"]
+  },
+  "ui": {
+    "pages": [
+      {
+        "id": "graph",
+        "title": "Graph",
+        "path": "ui/graph.html"
+      }
+    ]
+  },
+  "agent": {
+    "executor": {
+      "protocol": "picode-tools/1",
+      "command": "node",
+      "args": ["${extensionDir}/agent/execute.mjs"]
+    },
+    "skills": ["skills/graphify"],
+    "capabilities": [
+      {
+        "id": "graph",
+        "label": "Local code graph",
+        "description": "Build and query a local graph of this workspace's code (Graphify, tree-sitter, no network). The graph is stored with the extension, not in the repository.",
+        "tools": [
+          {
+            "id": "status",
+            "description": "Say whether a graph of the working folder exists, and the symbol and connection counts. Call this after graph.build; the build keeps running and this returns at once.",
+            "inputSchema": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "subdir": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Folder inside the workspace. Empty means the whole working folder."
+                }
+              }
+            }
+          },
+          {
+            "id": "build",
+            "description": "Start a local code graph of the working folder and return immediately. Code is parsed on this machine; nothing is sent to a model. Call graph.status to see when it is ready. Refuses when the graphify command is missing.",
+            "inputSchema": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "subdir": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Folder inside the workspace. Empty means the whole working folder."
+                },
+                "force": {
+                  "type": "boolean",
+                  "description": "Rebuild even when the graph is already current."
+                }
+              }
+            }
+          },
+          {
+            "id": "query",
+            "description": "Answer a question by walking the local graph. Exit-style results: an answer, a list of candidate names when one name matches several symbols, or a clear miss. Requires a finished build.",
+            "inputSchema": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["question"],
+              "properties": {
+                "question": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000,
+                  "description": "What to look up in the graph."
+                },
+                "budget": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 4000,
+                  "description": "Token cap for the answer. Default 2000."
+                },
+                "subdir": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Folder inside the workspace, when the graph was built for a subfolder."
+                }
+              }
+            }
+          },
+          {
+            "id": "explain",
+            "description": "List what connects to one symbol in the local graph. When the name matches several symbols, the answer lists them; call again with the exact one.",
+            "inputSchema": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["node"],
+              "properties": {
+                "node": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "Symbol, file or node label."
+                },
+                "subdir": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Folder inside the workspace, when the graph was built for a subfolder."
+                }
+              }
+            }
+          },
+          {
+            "id": "path",
+            "description": "Show a path through the local graph from one symbol to another.",
+            "inputSchema": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["from", "to"],
+              "properties": {
+                "from": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Start symbol." },
+                "to": { "type": "string", "minLength": 1, "maxLength": 200, "description": "End symbol." },
+                "subdir": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Folder inside the workspace, when the graph was built for a subfolder."
+                }
+              }
+            }
+          },
+          {
+            "id": "hubs",
+            "description": "List the most connected symbols in the local graph.",
+            "inputSchema": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "subdir": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Folder inside the workspace, when the graph was built for a subfolder."
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
