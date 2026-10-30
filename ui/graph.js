@@ -34,6 +34,25 @@ const PREVIEW = {
         { from: "web/mobile", to: "web/shared", weight: 1203 },
         { from: "internal/server", to: "internal/store", weight: 1074 },
       ],
+      inside: {
+        "desktop-shell/src": {
+          areas: [
+            { id: "desktop-shell/src/winbridge.rs", label: "winbridge.rs", symbols: 189 },
+            { id: "desktop-shell/src/btab.rs", label: "btab.rs", symbols: 118 },
+            { id: "desktop-shell/src/screen.rs", label: "screen.rs", symbols: 118 },
+            { id: "desktop-shell/src/guestchan.rs", label: "guestchan.rs", symbols: 108 },
+          ],
+          links: [],
+        },
+        "internal/server": {
+          areas: [
+            { id: "internal/server/cli_launch.go", label: "cli_launch.go", symbols: 82 },
+            { id: "internal/server/assistant.go", label: "assistant.go", symbols: 60 },
+            { id: "internal/server/agent_messages.go", label: "agent_messages.go", symbols: 59 },
+          ],
+          links: [],
+        },
+      },
       hubs: [
         { id: "store", label: "Store.Append", degree: 86, links: [
           { id: "event", label: "writeEvent", relation: "calls" },
@@ -100,7 +119,8 @@ function shortLabel(text, chars) {
 }
 
 let focusLabel = "";
-let focusArea = "";
+let focusStack = [];
+let focusChild = "";
 let measureCtx = null;
 
 // Canvas width plus a few pixels, so an SVG glyph that renders wider still fits.
@@ -111,12 +131,22 @@ function textWidth(text) {
   return Math.ceil(measureCtx.measureText(String(text || "")).width) + 6;
 }
 
+function currentView(map) {
+  const parent = focusStack[focusStack.length - 1] || "";
+  const inside = parent && map?.inside?.[parent];
+  if (inside) return { parent, areas: inside.areas || [], links: inside.links || [] };
+  return { parent: "", areas: map?.areas || [], links: map?.links || [] };
+}
+
 function areaSentence(map) {
-  const area = (map?.areas || []).find((item) => item.id === focusArea);
-  if (!area) return "Each circle is a folder, sized by how much code it holds. A line means one folder calls or imports another.";
-  const next = (map.links || []).filter((link) => link.from === area.id).sort((a, b) => b.weight - a.weight)[0];
-  const held = area.label + " holds " + Number(area.symbols).toLocaleString("en-US") + " symbols.";
-  return next ? held + " Most of its calls and imports go to " + next.to + "." : held;
+  const view = currentView(map);
+  const picked = (view.areas || []).find((item) => item.id === focusChild);
+  const count = (item) => Number(item.symbols).toLocaleString("en-US");
+  // The open folder is the page title. The sentence stays the situation and the next click.
+  if (picked && view.parent) return picked.label + " holds " + count(picked) + " symbols. Choose Back to return.";
+  if (view.parent) return "These are the files and folders in it. Choose a circle to see what it holds.";
+  if (picked) return picked.label + " holds " + count(picked) + " symbols. Choose another circle to open a folder.";
+  return "Each circle is a folder, sized by how much code it holds. Choose one to see what is inside.";
 }
 
 function layoutAreas(areas, links, width) {
@@ -144,13 +174,14 @@ function layoutAreas(areas, links, width) {
 }
 
 function drawAreas(stage, map) {
-  const areas = map.areas || [];
+  const view = currentView(map);
+  const areas = view.areas || [];
   const width = Math.max(280, root.clientWidth || 640);
-  const laid = layoutAreas(areas, map.links || [], width);
+  const laid = layoutAreas(areas, view.links || [], width);
   const height = laid.height;
   const picture = svg("svg", { viewBox: "0 0 " + width + " " + height, role: "group", "aria-label": "Folders in this workspace" });
   const maxW = Math.max(1, ...laid.edges.map((edge) => edge.weight));
-  if (!(map.areas || []).some((area) => area.id === focusArea)) focusArea = "";
+  if (focusChild && !areas.some((area) => area.id === focusChild)) focusChild = "";
   for (const edge of laid.edges) {
     const dx = edge.b.x - edge.a.x;
     const dy = edge.b.y - edge.a.y;
@@ -174,16 +205,12 @@ function drawAreas(stage, map) {
     }));
   }
   for (const node of laid.nodes) {
-    const current = node.id === focusArea;
+    const current = node.id === focusChild;
     const bubble = svg("circle", {
       class: "bubble",
       cx: node.x,
       cy: node.y,
       r: node.r,
-      tabindex: "0",
-      role: "button",
-      "aria-label": node.label + ", " + Number(node.symbols).toLocaleString("en-US") + " symbols",
-      "data-area": node.id,
     });
     if (current) bubble.setAttribute("data-current", "true");
     const title = svg("title");
@@ -206,7 +233,18 @@ function drawAreas(stage, map) {
     });
     const label = svg("text", { class: "bubble-label", x: node.x, y: ly, "text-anchor": "middle" });
     label.textContent = shown;
-    picture.append(halo, bubble, label);
+    const hit = svg("rect", {
+      class: "hit",
+      x: node.x - node.cellW / 2 + 2,
+      y: node.y - node.r - 8,
+      width: node.cellW - 4,
+      height: node.r + ly - (node.y - node.r - 8) + 6,
+      tabindex: "0",
+      role: "button",
+      "aria-label": node.label + ", " + Number(node.symbols).toLocaleString("en-US") + " symbols",
+      "data-area": node.id,
+    });
+    picture.append(halo, bubble, label, hit);
   }
   stage.append(picture);
   return stage;
@@ -320,7 +358,9 @@ function drawMap(map) {
 
 function draw(model, workspaces, selected, map) {
   root.replaceChildren();
-  const title = el("h1", { class: "pc-title", text: "Graph" });
+  const looking = model.mode === "ready" && focusLabel && (map?.hubs || []).some((hub) => hub.label === focusLabel);
+  const place = model.mode === "ready" && !looking ? currentView(map).parent : "";
+  const title = el("h1", { class: "pc-title", text: place || "Graph" });
   const bar = el("div", { class: "toolbar", "data-align-row": "" });
   const select = el("select", { class: "pc-select", id: "workspace", "aria-label": "Workspace" });
   const nameBudget = Math.max(12, Math.floor(((root.clientWidth || 640) - 168) / 7));
@@ -355,15 +395,20 @@ function draw(model, workspaces, selected, map) {
     return;
   }
 
-  const counts = el("p", { class: "counts" });
+  const counts = el("p", { class: "counts", title: "A symbol is a function, a type, or another named piece of code." });
   const parts = String(model.counts || "").split(" · ");
   for (const part of parts) counts.append(el("span", { text: part }));
   root.append(counts, drawMap(map));
-  const looking = focusLabel && (map?.hubs || []).some((hub) => hub.label === focusLabel);
-  root.append(el("p", { class: "map-note", text: looking
+  const note = looking
     ? "The most connected symbols, and a few of what each one touches."
-    : areaSentence(map) }));
+    : areaSentence(map);
+  root.append(el("p", {
+    class: "map-note",
+    text: note,
+    title: note.includes("symbols") ? "A symbol is a function, a type, or another named piece of code." : "",
+  }));
   if (looking) root.append(el("button", { class: "pc-button", type: "button", id: "folders", text: "Show folders" }));
+  else if (focusStack.length) root.append(el("button", { class: "pc-button", type: "button", id: "back", text: "Back" }));
   // The sentence sits under the picture, so a click is visible without scrolling past the list.
   root.append(el("pre", { class: "result", id: "result" }));
   if (model.hubs.length) {
@@ -495,10 +540,26 @@ function wire(api, model) {
     if (input && keep) input.value = keep;
     wire(api, last.model);
   });
+  document.getElementById("back")?.addEventListener("click", () => {
+    focusStack.pop();
+    focusChild = "";
+    if (!last) return;
+    const keep = document.getElementById("question")?.value || "";
+    draw(last.model, last.workspaces, last.selected, last.map);
+    const input = document.getElementById("question");
+    if (input && keep) input.value = keep;
+    wire(api, last.model);
+  });
   root.querySelectorAll("[data-area]").forEach((node) => {
     const run = () => {
-      focusArea = node.getAttribute("data-area") || "";
+      const id = node.getAttribute("data-area") || "";
       focusLabel = "";
+      if (last?.map?.inside?.[id]) {
+        focusStack.push(id);
+        focusChild = "";
+      } else {
+        focusChild = id;
+      }
       if (!last) return;
       const keep = document.getElementById("question")?.value || "";
       draw(last.model, last.workspaces, last.selected, last.map);

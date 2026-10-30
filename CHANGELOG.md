@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 — 2026-10-30
+
+- Clicking a folder opens the files and folders inside it. Back returns to the previous map.
+- Clicking the name does the same as clicking the circle.
+
 ## 0.1.3 — 2026-10-29
 
 - The Graph page opens on the folders of the workspace, sized by how much code they hold, with calls and imports drawn between them.

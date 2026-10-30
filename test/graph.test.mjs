@@ -220,4 +220,7 @@ test("the map is the largest folders and the imports between them", async () => 
   const link = map.links.find((item) => item.from === "web/browser" && item.to === "web/shared");
   assert.equal(link.weight, 6);
   assert.equal(map.links.some((item) => item.from === "cmd/picode"), true);
+  const files = map.inside["web/browser"].areas.map((area) => area.label);
+  assert.ok(files.includes("view0.js"));
+  assert.equal(files.includes("lib0.js"), false);
 });

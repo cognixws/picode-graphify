@@ -1,7 +1,7 @@
 {
   "id": "graphify",
   "name": "Graphify",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "apiVersion": 2,
   "publisher": "COGNIX[WS]",
   "description": "A local graph of a workspace's code, built with Graphify. Code stays on this machine.",
